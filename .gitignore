@@ -24,7 +24,7 @@ package-lock.json
 
 # Misc
 _sass/vendors
-
+assets/js/dist
 
 # Posts
 _posts/###2026-06-15-Garfield.md
