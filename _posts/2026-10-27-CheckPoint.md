@@ -426,7 +426,7 @@ SMB         10.129.187.153  445    DC01             SYSVOL          READ        
 SMB         10.129.187.153  445    DC01             VMBackups
 ```
 
-I went through [extension anatomy](https://code.visualstudio.com/api/get-started/extension-anatomy), [activation events](https://code.visualstudio.com/api/references/activation-events), [vscode-vsce](github.com/microsoft/vscode-vsce) and some AI :}, to create a malicious VS code extension.
+I went through [extension anatomy](https://code.visualstudio.com/api/get-started/extension-anatomy), [activation events](https://code.visualstudio.com/api/references/activation-events), [vscode-vsce](https://github.com/microsoft/vscode-vsce) and some AI :}, to create a malicious VS code extension.
 
 Creating the following structure
 
