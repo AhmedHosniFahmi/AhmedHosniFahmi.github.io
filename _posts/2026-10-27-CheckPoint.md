@@ -260,9 +260,9 @@ $ bloodyad -H dc01.checkpoint.htb -d checkpoint.htb -u alex.turner -p 'Checkpoin
 
 ## Stupid or Fruitful Journey to mark.davies?
 
-You will know why I might call it a stupid journey if you read another write up for the machine, or you will figure it out by the end of that section anyways. 
+You will know why I might call it a stupid journey if you read another write up for the machine, or you can figure it out by the end of that section anyway. 
 
-When I saw a WRITE privileges over `mark.davies` I instantly thought of Shadow Credentials, targeted kerberoasting.
+When I saw a WRITE privileges over `mark.davies` I instantly thought of shadow credentials and targeted kerberoasting.
 
 #### Shadow Credentials
 
