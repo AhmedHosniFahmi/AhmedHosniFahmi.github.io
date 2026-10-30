@@ -31,11 +31,11 @@ Before starting the write up, let me tell you something:
 
 # dMSA
 
-Windows Server 2025 introduced delegated Managed Service Accounts (dMSA) as an evolution of gMSA. The key new capability is migration. A dMSA can inherit the identity and permissions of an existing legacy account by linking itself to that account.
+Windows Server 2025 introduced delegated Managed Service Accounts (dMSA) as an evolution of gMSA. The key new capability is migration. A dMSA can inherit the identity and permissions of an existing legacy account by linking itself to that account, which is achieved by populating the `msDS-ManagedAccountPrecededByLink` attribute with the distinguished name (DN) of the source account on the dMSA.
 
 ### BadSuccessor - The Old
 
-[Yuval Gordon disclosed BadSuccessor](https://www.akamai.com/blog/security-research/abusing-dmsa-for-privilege-escalation-in-active-directory#dmsa) in May 2025: with nothing more than `CreateChild` rights on an OU. The attacker could create a dMSA and then set two attributes on it,  `msDS-GroupMSAMembership` and `msDS-ManagedAccountPrecededByLink` to point and inherit at any target user permissions, including a domain admin. Because the pre-patch KDC trusted this link unconditionally at ticket-issuance time, requesting a TGT for the dMSA effectively handed the attacker a ticket carrying the target’s SID and also the SIDs of the target's groups on its PAC.
+[Yuval Gordon disclosed BadSuccessor](https://www.akamai.com/blog/security-research/abusing-dmsa-for-privilege-escalation-in-active-directory#dmsa) in May 2025: with nothing more than `CreateChild` rights on an OU. The attacker could create a dMSA and then set the attribute `msDS-ManagedAccountPrecededByLink` on it, and point it and inherit any target user permissions, including a domain admin. Because the pre-patch KDC trusted this link unconditionally at ticket-issuance time, requesting a TGT for the dMSA effectively handed the attacker a ticket carrying the target’s SID and also the SIDs of the target's groups on its PAC.
 
 The dMSA claimed “I am the successor of user X” and the KDC just believed it. You can try abusing BadSuccessor on HTB machine [Eighteen](https://app.hackthebox.com/machines/Eighteen).
 
@@ -324,7 +324,9 @@ distinguishedName: DC=_msdcs.checkpoint.htb,CN=MicrosoftDNS,DC=ForestDnsZones,DC
 permission: CREATE_CHILD
 ```
 
-bloodyad BadSuccessor module automates the process: it creates a new dMSA account (`hacker$`) and sets `msDS-ManagedAccountPrecededByLink` (and `msDS-GroupMSAMembership`) to point at Mark Davies DN, marking `hacker$` as the successor of Mark Davies’ account. At this point, the dMSA object exists and is linked. The only thing left is getting a ticket, which is where bloodyad attempts to auto fetch a dMSA TGT failed on encryption type negotiation.
+bloodyad BadSuccessor module automates the process: it creates a new dMSA account (`hacker$`) and sets `msDS-ManagedAccountPrecededByLink` to point at Mark Davies DN, marking `hacker$` as the successor of Mark Davies’ account. At this point, the dMSA object exists and is linked. The only thing left is getting a ticket, which is where bloodyad attempts to auto fetch a dMSA TGT failed on encryption type negotiation.
+
+bloodyad BadSuccessor module also set the attribute `msDS-GroupMSAMembership` on `hacker$` to be `alex.turner`, this attribute is used for access checks to determine if a requestor has permission to retrieve the password for the account, meaning `alex.turner` can now fetch the password blob of `hacker$` using `msDS-ManagedPassword` and effectively impersonate the service account.
 
 ```bash
 $ bloodyad -H dc01.checkpoint.htb -d checkpoint.htb -u alex.turner -p 'Checkpoint2024!' add badSuccessor hacker -t "CN=MARK DAVIES,OU=EMPLOYEES,DC=CHECKPOINT,DC=HTB"
